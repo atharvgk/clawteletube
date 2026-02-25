@@ -13,21 +13,12 @@ import os
 import re
 from datetime import datetime
 
-# ── RULE 1: Load from env ─────────────────────────────────────────────────────
-# Hardcoding limits reduces configurability and adaptability across environments
 MAX_CHARS = int(os.getenv("MAX_TRANSCRIPT_CHARS", 150000))
 
-# ── RULE 2: Cache path ────────────────────────────────────────────────────────
-# Code: SCRIPT_DIR/../cache/ | Docs always: {baseDir}/cache/
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CACHE_DIR = os.path.join(SCRIPT_DIR, '..', 'cache')
 
-# ── RULE 3: Segment output limit ──────────────────────────────────────────────
-# Full transcript preserved separately — only timestamps need first 50
 MAX_SEGMENTS_IN_OUTPUT = 50
-
-# ── RULE 21: Language human-readable mapping ──────────────────────────────────
-# Covers Indian languages + common global ones for non-English transcripts
 LANG_MAP = {
     "en": "English",    "hi": "Hindi",      "ta": "Tamil",
     "te": "Telugu",     "kn": "Kannada",    "mr": "Marathi",
@@ -69,7 +60,7 @@ def get_seg(seg, key: str, default=None):
 
 
 def main():
-    # ── Input validation ───────────────────────────────────────────────────────
+    # Input validation
     if len(sys.argv) < 2:
         print(json.dumps({
             "success": False,
@@ -91,11 +82,11 @@ def main():
         }))
         sys.exit(0)
 
-    # ── Ensure cache directory exists ──────────────────────────────────────────
+    # Ensure cache directory exists
     os.makedirs(CACHE_DIR, exist_ok=True)
     cache_file = os.path.join(CACHE_DIR, f"{video_id}.json")
 
-    # ── RULE 9: Warm request — instant read, zero network cost ────────────────
+    # Warm request for instant read, zero network cost
     if os.path.exists(cache_file):
         try:
             with open(cache_file, 'r', encoding='utf-8') as f:
@@ -105,7 +96,7 @@ def main():
         except (json.JSONDecodeError, IOError):
             pass  # Corrupted cache — fall through to cold start re-fetch
 
-    # ── Import dependencies ────────────────────────────────────────────────────
+    # Import dependencies
     try:
         from youtube_transcript_api import (
             YouTubeTranscriptApi,
@@ -124,7 +115,7 @@ def main():
         }))
         sys.exit(0)
 
-    # ── RULE 9: Cold start — fetch, process, cache, return ────────────────────
+    # Cold start
     segments_raw = []
     lang_code = "unknown"
 
@@ -177,14 +168,13 @@ def main():
         }))
         sys.exit(0)
 
-    # ── RULE 20: Compute total duration from ALL segments (before slicing) ─────
-    # Use segments_raw here for accurate total — not the sliced output_segments
+    # Compute total duration from ALL segments
     duration_seconds = round(
         sum(float(get_seg(seg, 'duration', 0)) for seg in segments_raw),
         2
     )
 
-    # ── Build segment data and transcript text ─────────────────────────────────
+    # Build segment data and transcript text
     full_text_parts = []
     all_segment_data = []
 
@@ -197,14 +187,12 @@ def main():
         all_segment_data.append({
             "text": text,
             "start": round(float(start), 2),
-            "start_mmss": seconds_to_mmss(start),   # Pre-formatted for agent
+            "start_mmss": seconds_to_mmss(start),
             "duration": round(float(duration), 2)
         })
 
     full_transcript = clean_transcript(' '.join(full_text_parts))
 
-    # ── RULE 15: Empty transcript guard (before truncation) ───────────────────
-    # Handles broken or blank auto-generated captions defensively
     if not full_transcript.strip():
         print(json.dumps({
             "success": False,
@@ -213,7 +201,7 @@ def main():
         }))
         sys.exit(0)
 
-    # ── RULE 1: Truncation using env-configured MAX_CHARS ─────────────────────
+    # 
     truncated = False
     original_length = len(full_transcript)
 
@@ -222,12 +210,9 @@ def main():
         truncated = True
 
     truncated_to = MAX_CHARS if truncated else original_length
-
-    # ── RULE 21: Human-readable language name ─────────────────────────────────
     language_human = LANG_MAP.get(lang_code, lang_code)
 
-    # ── Fetch video title via pytube (best-effort, non-critical) ──────────────
-    # RULE 24: pytube is best-effort — fallback to "YouTube Video" if it fails
+    # Fetch video title via pytube
     title = "YouTube Video"
     try:
         from pytube import YouTube
@@ -236,12 +221,9 @@ def main():
         if fetched and fetched.strip():
             title = fetched.strip()
     except Exception:
-        pass  # Non-critical — transcript fetch is what matters
+        pass 
 
-    # ── RULE 3: First 50 segments for output (full transcript preserved above) ─
     output_segments = all_segment_data[:MAX_SEGMENTS_IN_OUTPUT]
-
-    # ── RULE 12 + RULE 20: Stats block with duration ──────────────────────────
     stats = {
         "char_length": original_length,
         "truncated": truncated,
@@ -252,7 +234,7 @@ def main():
         "duration_seconds": duration_seconds
     }
 
-    # ── Build final result ─────────────────────────────────────────────────────
+    #final result
     result = {
         "success": True,
         "video_id": video_id,
@@ -260,21 +242,21 @@ def main():
         "transcript": full_transcript,
         "segments": output_segments,
         "language": lang_code,
-        "language_human_readable": language_human,   # RULE 21
+        "language_human_readable": language_human,   
         "truncated": truncated,
         "original_length": original_length,
         "truncated_to": truncated_to,
-        "duration_seconds": duration_seconds,         # RULE 20
-        "stats": stats,                               # RULE 12
+        "duration_seconds": duration_seconds,         
+        "stats": stats,                               
         "cached_at": datetime.utcnow().isoformat() + "Z"
     }
 
-    # ── RULE 2 + RULE 8: Write self-describing cache file ─────────────────────
+    #Write cache file
     try:
         with open(cache_file, 'w', encoding='utf-8') as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
     except IOError:
-        pass  # Cache write failure is non-critical — result still returned
+        pass  
 
     print(json.dumps(result, ensure_ascii=False))
     sys.exit(0)
