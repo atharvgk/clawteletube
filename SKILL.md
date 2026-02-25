@@ -3,7 +3,7 @@ name: yt-summarizer
 version: 1.0.0
 description: Summarize YouTube videos and answer questions about them. Use when user sends a YouTube link, asks to summarize a video, wants key points or timestamps from a video, or asks questions about a previously shared YouTube video. Also activates for language requests like "summarize in Hindi", "explain in Kannada", or any Indian language variant.
 homepage: https://github.com/atharvgk/yt-summarizer
-metadata: {"openclaw": {"emoji": "🎥", "requires": {"bins": ["python3"]}, "install": [{"id": "pip-deps", "kind": "shell", "command": "pip3 install youtube-transcript-api pytube --quiet", "label": "Install Python transcript dependencies"}]}}
+metadata: {"openclaw": {"emoji": "🎥", "requires": {"bins": ["python"]}, "install": [{"id": "pip-deps", "kind": "shell", "command": "pip install youtube-transcript-api pytube --quiet", "label": "Install Python transcript dependencies"}]}}
 ---
 
 ## Overview
@@ -30,7 +30,7 @@ Activate this skill when the user:
 When user sends a message containing a YouTube URL:
 1. Extract the 11-character video ID from the URL
 2. Run the transcript fetch script:
-     python3 {baseDir}/scripts/fetch_transcript.py VIDEO_ID
+     python {baseDir}/scripts/fetch_transcript.py VIDEO_ID
 3. The script prints a single JSON object to stdout. Parse it.
 4. If success=false in JSON, map the "error" field to the user message
    defined in Error Handling section below. Stop here.
